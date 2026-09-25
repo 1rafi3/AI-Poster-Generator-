@@ -1,24 +1,28 @@
-import React, { useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import { Download, FileText, ZoomIn, ZoomOut, Check, Eye, RefreshCw } from 'lucide-react';
 
+/* ─────────────────────────────────────────────
+   TYPES
+───────────────────────────────────────────── */
+interface PosterData {
+  headline: string;
+  subheadline?: string;
+  name: string;
+  designation: string;
+  party: string;
+  district: string;
+  promotedBy: string;
+  slogan?: string;
+  candidatePhotoUrl?: string;
+  leader1PhotoUrl?: string;
+  leader2PhotoUrl?: string;
+  customBanglaFont?: string;
+  customColorAccent?: string;
+}
+
 interface PosterCanvasPreviewProps {
-  posterData: {
-    headline: string;
-    subheadline?: string;
-    name: string;
-    designation: string;
-    party: string;
-    district: string;
-    promotedBy: string;
-    slogan?: string;
-    candidatePhotoUrl?: string;
-    leader1PhotoUrl?: string;
-    leader2PhotoUrl?: string;
-    customBanglaFont?: string;
-    customColorAccent?: string;
-  };
+  posterData: PosterData;
   serverGeneratedImageUrl?: string;
   templateColors?: {
     primary: string;
@@ -31,6 +35,454 @@ interface PosterCanvasPreviewProps {
   retryCount?: number;
 }
 
+interface Colors {
+  primary: string;
+  red: string;
+  gold: string;
+  bg: [string, string];
+}
+
+/* ─────────────────────────────────────────────
+   CANVAS HELPERS
+───────────────────────────────────────────── */
+function roundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number, r: number
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    const apiOrigin = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    img.src = src.startsWith('http') || src.startsWith('data:')
+      ? src : `${apiOrigin}${src.startsWith('/') ? '' : '/'}${src}`;
+  });
+}
+
+function drawCircleImg(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement | null,
+  cx: number, cy: number, r: number,
+  fillColor: string,
+  placeholderText: string,
+  borderColor: string,
+  borderWidth: number,
+  font: string,
+  sc: number
+) {
+  ctx.save();
+  // background fill
+  ctx.fillStyle = fillColor;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `${9 * sc}px ${font}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(placeholderText, cx, cy);
+  }
+
+  // border ring
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = borderWidth;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* Fit text to maxWidth by reducing font size */
+function fitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  baseFontStr: string // e.g. "900 22px 'Tiro Bangla'"
+): string {
+  ctx.font = baseFontStr;
+  if (ctx.measureText(text).width <= maxWidth) return baseFontStr;
+  // parse size
+  const match = baseFontStr.match(/(\d+(?:\.\d+)?)px/);
+  if (!match) return baseFontStr;
+  let size = parseFloat(match[1]);
+  while (size > 8 && ctx.measureText(text).width > maxWidth) {
+    size -= 1;
+    ctx.font = baseFontStr.replace(/[\d.]+px/, `${size}px`);
+  }
+  return ctx.font;
+}
+
+/* ─────────────────────────────────────────────
+   MAIN DRAW FUNCTION
+   sc = 1 for preview (480×640)
+   sc = 2.5 for print  (1200×1600)
+───────────────────────────────────────────── */
+async function drawPoster(
+  ctx: CanvasRenderingContext2D,
+  data: PosterData,
+  colors: Colors,
+  fontFamily: string,
+  sc: number
+): Promise<void> {
+  const W = 480 * sc;
+  const H = 640 * sc;
+  const { primary, red, gold, bg } = colors;
+  const F = `'${fontFamily}', 'Hind Siliguri', 'Noto Sans Bengali', sans-serif`;
+
+  ctx.save();
+
+  /* ── 1. BACKGROUND ── */
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, bg[0]);
+  bgGrad.addColorStop(0.65, bg[1]);
+  bgGrad.addColorStop(1, '#050C09');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  /* ── 2. BG CIRCLE MOTIF ── */
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.arc(W / 2, H * 0.26, 160 * sc, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  /* ── 3. GOLDEN BORDER ── */
+  ctx.save();
+  ctx.strokeStyle = gold + 'cc';
+  ctx.lineWidth = 4 * sc;
+  roundedRect(ctx, 10 * sc, 10 * sc, W - 20 * sc, H - 20 * sc, 12 * sc);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1 * sc;
+  roundedRect(ctx, 17 * sc, 17 * sc, W - 34 * sc, H - 34 * sc, 8 * sc);
+  ctx.stroke();
+  ctx.restore();
+
+  /* ── 4. CORNER ORNAMENTS ── */
+  const corners: [number, number][] = [
+    [18 * sc, 26 * sc],
+    [W - 18 * sc, 26 * sc],
+    [18 * sc, H - 12 * sc],
+    [W - 18 * sc, H - 12 * sc],
+  ];
+  ctx.save();
+  ctx.fillStyle = gold;
+  ctx.globalAlpha = 0.85;
+  ctx.font = `bold ${16 * sc}px sans-serif`;
+  ctx.textBaseline = 'alphabetic';
+  for (const [cx2, cy2] of corners) {
+    ctx.textAlign = cx2 < W / 2 ? 'left' : 'right';
+    ctx.fillText('❖', cx2, cy2);
+  }
+  ctx.restore();
+
+  /* ══════════════════════════════════════
+     TOP SECTION
+  ══════════════════════════════════════ */
+  let curY = 28 * sc;
+
+  /* -- Bismillah strip -- */
+  const bismText = 'বিসমিল্লাহির রাহমানির রাহিম';
+  ctx.save();
+  ctx.font = `bold ${11 * sc}px ${F}`;
+  const bismTW = ctx.measureText(bismText).width;
+  const bismPadX = 18 * sc, bismPadY = 4 * sc;
+  const bismW = bismTW + bismPadX * 2;
+  const bismH = 20 * sc;
+  const bismX = (W - bismW) / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  roundedRect(ctx, bismX, curY, bismW, bismH, bismH / 2);
+  ctx.fill();
+  ctx.strokeStyle = gold + '55';
+  ctx.lineWidth = 1 * sc;
+  roundedRect(ctx, bismX, curY, bismW, bismH, bismH / 2);
+  ctx.stroke();
+  ctx.fillStyle = '#fde68a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(bismText, W / 2, curY + bismH / 2);
+  ctx.restore();
+
+  curY += bismH + 10 * sc;
+
+  /* -- Leader circles + flag emblem -- */
+  const leaderR = 28 * sc;
+  const flagR = 22 * sc;
+  const rowCY = curY + leaderR;
+  const l1x = W / 2 - 62 * sc;
+  const l2x = W / 2 + 62 * sc;
+
+  // Load photos (fail gracefully)
+  let l1img: HTMLImageElement | null = null;
+  let l2img: HTMLImageElement | null = null;
+  let candImg: HTMLImageElement | null = null;
+
+  if (data.leader1PhotoUrl) {
+    try { l1img = await loadImg(data.leader1PhotoUrl); } catch (_) { /* no photo */ }
+  }
+  if (data.leader2PhotoUrl) {
+    try { l2img = await loadImg(data.leader2PhotoUrl); } catch (_) { /* no photo */ }
+  }
+  if (data.candidatePhotoUrl) {
+    try { candImg = await loadImg(data.candidatePhotoUrl); } catch (_) { /* no photo */ }
+  }
+
+  drawCircleImg(ctx, l1img, l1x, rowCY, leaderR, '#1e293b', 'নেতা ১', gold, 3 * sc, F, sc);
+
+  // Flag emblem
+  ctx.save();
+  ctx.fillStyle = primary;
+  ctx.beginPath(); ctx.arc(W / 2, rowCY, flagR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = red;
+  ctx.beginPath(); ctx.arc(W / 2, rowCY, flagR * 0.48, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 2 * sc;
+  ctx.beginPath(); ctx.arc(W / 2, rowCY, flagR, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+
+  drawCircleImg(ctx, l2img, l2x, rowCY, leaderR, '#1e293b', 'নেতা ২', gold, 3 * sc, F, sc);
+
+  curY = rowCY + leaderR + 10 * sc;
+
+  /* -- Headline ribbon -- */
+  const ribbonPad = 22 * sc;
+  const ribbonX = ribbonPad;
+  const ribbonW = W - ribbonPad * 2;
+  const ribbonH = 52 * sc;
+
+  ctx.save();
+  const ribbonG = ctx.createLinearGradient(ribbonX, 0, ribbonX + ribbonW, 0);
+  ribbonG.addColorStop(0, red);
+  ribbonG.addColorStop(1, '#B91C1C');
+  ctx.fillStyle = ribbonG;
+  roundedRect(ctx, ribbonX, curY, ribbonW, ribbonH, 8 * sc);
+  ctx.fill();
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 2 * sc;
+  roundedRect(ctx, ribbonX, curY, ribbonW, ribbonH, 8 * sc);
+  ctx.stroke();
+
+  const headText = data.headline || 'মহান বিজয় দিবস';
+  const headFontBase = `900 ${22 * sc}px ${F}`;
+  const headFont = fitText(ctx, headText, ribbonW - 16 * sc, headFontBase);
+  ctx.font = headFont;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 4 * sc;
+  ctx.fillText(headText, W / 2, curY + ribbonH / 2);
+  ctx.restore();
+
+  curY += ribbonH + 6 * sc;
+
+  /* -- Subheadline -- */
+  if (data.subheadline) {
+    ctx.save();
+    ctx.font = `600 ${11 * sc}px ${F}`;
+    ctx.fillStyle = '#fcd34d';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 3 * sc;
+    ctx.fillText(data.subheadline, W / 2, curY);
+    ctx.restore();
+    curY += 18 * sc;
+  }
+
+  /* ══════════════════════════════════════
+     MIDDLE SECTION
+  ══════════════════════════════════════ */
+  const midZoneTop = curY + 8 * sc;
+  const midZoneBot = H - 110 * sc; // space for footer
+  const midCY = (midZoneTop + midZoneBot) / 2 - 20 * sc;
+  const candR = 62 * sc;
+
+  /* -- Candidate glow -- */
+  ctx.save();
+  const glow = ctx.createRadialGradient(W / 2, midCY, candR * 0.4, W / 2, midCY, candR + 22 * sc);
+  glow.addColorStop(0, gold + '44');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(W / 2, midCY, candR + 22 * sc, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  /* -- Candidate photo -- */
+  drawCircleImg(
+    ctx, candImg, W / 2, midCY, candR,
+    '#1e293b', 'প্রার্থীর ছবি',
+    gold, 4 * sc, F, sc
+  );
+
+  /* -- "জনতার সেবক" badge -- */
+  const badgeText = 'জনতার সেবক';
+  const badgeBot = midCY + candR;
+  ctx.save();
+  ctx.font = `900 ${9 * sc}px ${F}`;
+  const btw = ctx.measureText(badgeText).width;
+  const bpx = 12 * sc, bpy = 3 * sc;
+  const bw = btw + bpx * 2, bh = 15 * sc;
+  const bx = W / 2 - bw / 2, by = badgeBot + 5 * sc;
+  ctx.fillStyle = '#f59e0b';
+  roundedRect(ctx, bx, by, bw, bh, bh / 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 * sc;
+  roundedRect(ctx, bx, by, bw, bh, bh / 2); ctx.stroke();
+  ctx.fillStyle = '#0c0a09';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(badgeText, W / 2, by + bh / 2);
+  ctx.restore();
+
+  /* -- Name plaque -- */
+  const plaqueY = by + bh + 14 * sc;
+  const plaqueH = 72 * sc;
+  const plaquePadX = 44 * sc;
+  const plaquePadInner = 16 * sc;
+  const plaqueX = plaquePadX;
+  const plaqueW = W - plaquePadX * 2;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  roundedRect(ctx, plaqueX, plaqueY, plaqueW, plaqueH, 12 * sc); ctx.fill();
+  ctx.strokeStyle = gold + '99'; ctx.lineWidth = 1 * sc;
+  roundedRect(ctx, plaqueX, plaqueY, plaqueW, plaqueH, 12 * sc); ctx.stroke();
+
+  // Name
+  const nameText = data.name || 'সম্মানিত প্রার্থী';
+  const nameFontBase = `700 ${20 * sc}px ${F}`;
+  const nameFont = fitText(ctx, nameText, plaqueW - plaquePadInner * 2, nameFontBase);
+  ctx.font = nameFont;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 3 * sc;
+  ctx.fillText(nameText, W / 2, plaqueY + 10 * sc);
+
+  // Designation
+  const desigText = `${data.designation || 'পদবি'}, ${data.party || 'দল'}`;
+  const desigFontBase = `600 ${11 * sc}px ${F}`;
+  const desigFont = fitText(ctx, desigText, plaqueW - plaquePadInner * 2, desigFontBase);
+  ctx.font = desigFont;
+  ctx.fillStyle = '#fcd34d';
+  ctx.shadowBlur = 2 * sc;
+  ctx.fillText(desigText, W / 2, plaqueY + 34 * sc);
+
+  // District
+  ctx.font = `400 ${10 * sc}px ${F}`;
+  ctx.fillStyle = '#cbd5e1';
+  ctx.shadowBlur = 0;
+  ctx.fillText(`📍 ${data.district || 'জেলা, বাংলাদেশ'}`, W / 2, plaqueY + 52 * sc);
+  ctx.restore();
+
+  /* -- Slogan -- */
+  if (data.slogan) {
+    const slY = plaqueY + plaqueH + 8 * sc;
+    const slPadX = 56 * sc;
+    const slW = W - slPadX * 2;
+    const slH = 26 * sc;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    roundedRect(ctx, slPadX, slY, slW, slH, 8 * sc); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1 * sc;
+    roundedRect(ctx, slPadX, slY, slW, slH, 8 * sc); ctx.stroke();
+    ctx.font = `italic 500 ${10 * sc}px ${F}`;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`"${data.slogan}"`, W / 2, slY + slH / 2);
+    ctx.restore();
+  }
+
+  /* ══════════════════════════════════════
+     BOTTOM SECTION
+  ══════════════════════════════════════ */
+  const ftPadX = 22 * sc;
+  const ftW = W - ftPadX * 2;
+  const ftH = 68 * sc;
+  const ftY = H - ftH - 18 * sc;
+
+  ctx.save();
+  const ftG = ctx.createLinearGradient(ftPadX, 0, ftPadX + ftW, 0);
+  ftG.addColorStop(0, '#991B1B');
+  ftG.addColorStop(0.5, red);
+  ftG.addColorStop(1, '#991B1B');
+  ctx.fillStyle = ftG;
+  roundedRect(ctx, ftPadX, ftY, ftW, ftH, 12 * sc); ctx.fill();
+  ctx.strokeStyle = gold; ctx.lineWidth = 1 * sc;
+  roundedRect(ctx, ftPadX, ftY, ftW, ftH, 12 * sc); ctx.stroke();
+
+  // "প্রচারে" pill
+  const pillTxt = '- প্রচারে -';
+  ctx.font = `900 ${9 * sc}px ${F}`;
+  const pillTW = ctx.measureText(pillTxt).width;
+  const ppx2 = 10 * sc, ppy2 = 3 * sc;
+  const pillW = pillTW + ppx2 * 2, pillH = 14 * sc;
+  const pillX = W / 2 - pillW / 2, pillY2 = ftY + 8 * sc;
+  ctx.fillStyle = '#ffffff';
+  roundedRect(ctx, pillX, pillY2, pillW, pillH, pillH / 2); ctx.fill();
+  ctx.fillStyle = '#B91C1C';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(pillTxt, W / 2, pillY2 + pillH / 2);
+
+  // Promoted by name
+  const promoText = data.promotedBy || 'সকল নেতাকর্মীবৃন্দ';
+  const promoFontBase = `800 ${13 * sc}px ${F}`;
+  const promoFont = fitText(ctx, promoText, ftW - 16 * sc, promoFontBase);
+  ctx.font = promoFont;
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 2 * sc;
+  ctx.fillText(promoText, W / 2, pillY2 + pillH + 8 * sc);
+
+  // District subline
+  ctx.font = `400 ${9 * sc}px ${F}`;
+  ctx.fillStyle = '#fde68a';
+  ctx.shadowBlur = 0;
+  ctx.fillText(`${data.district || ''} | দলমত নির্বিশেষে সর্বস্তরের জনগণ`, W / 2, pillY2 + pillH + 26 * sc);
+  ctx.restore();
+
+  // Watermark
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = '#64748b';
+  ctx.font = `400 ${8 * sc}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('AI Political Poster Maker Bangladesh • ১২০০×১৬০০ হাই-রেজুলেশন', W / 2, H - 4 * sc);
+  ctx.restore();
+
+  ctx.restore(); // global save
+}
+
+/* ─────────────────────────────────────────────
+   COMPONENT
+───────────────────────────────────────────── */
+const PREVIEW_W = 480;
+const PREVIEW_H = 640;
+const PRINT_SCALE = 2.5; // 480×640 × 2.5 = 1200×1600
+
 export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
   posterData,
   templateColors,
@@ -38,84 +490,75 @@ export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
   isRegenerating = false,
   retryCount = 0,
 }) => {
-  const posterRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState<number>(0.65);
-  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [displayScale, setDisplayScale] = useState(0.65);
+  const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
-  const [selectedFont, setSelectedFont] = useState<string>(
-    posterData.customBanglaFont || 'Tiro Bangla'
-  );
+  const [selectedFont, setSelectedFont] = useState(posterData.customBanglaFont || 'Tiro Bangla');
+  const [isDrawing, setIsDrawing] = useState(false);
 
-  const bgGrad = templateColors?.backgroundGradient || ['#004D38', '#00241A'];
-  const primaryColor = posterData.customColorAccent || templateColors?.primary || '#006A4E';
-  const redColor = templateColors?.secondary || '#F42A41';
-  const goldColor = templateColors?.accent || '#F59E0B';
-
-  const injectFonts = (clonedDoc: Document) => {
-    const link = clonedDoc.createElement('link');
-    link.rel = 'stylesheet';
-    link.href =
-      'https://fonts.googleapis.com/css2?family=Anek+Bangla:wght@400;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla:ital@0;1&display=swap';
-    clonedDoc.head.appendChild(link);
+  const colors: Colors = {
+    primary: posterData.customColorAccent || templateColors?.primary || '#006A4E',
+    red: templateColors?.secondary || '#F42A41',
+    gold: templateColors?.accent || '#F59E0B',
+    bg: templateColors?.backgroundGradient || ['#004D38', '#00241A'],
   };
 
-  const imgSrc = (url: string) =>
-    url.startsWith('http') || url.startsWith('data:') ? url : `http://localhost:5000${url}`;
+  /* Redraw preview canvas whenever anything changes */
+  const redrawPreview = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    setIsDrawing(true);
+    try {
+      await (document as any).fonts.ready;
+      await drawPoster(ctx, posterData, colors, selectedFont, 1);
+    } catch (err) {
+      console.error('Preview draw error:', err);
+    } finally {
+      setIsDrawing(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posterData, templateColors, selectedFont]);
 
-  // Always use browser html2canvas — librsvg cannot shape Bangla text correctly.
-  const downloadHighResPng = async () => {
-    if (!posterRef.current) return;
+  useEffect(() => {
+    redrawPreview();
+  }, [redrawPreview]);
+
+  /* Create print-resolution canvas and draw */
+  const makePrintCanvas = async (): Promise<HTMLCanvasElement> => {
+    const off = document.createElement('canvas');
+    off.width = PREVIEW_W * PRINT_SCALE;   // 1200
+    off.height = PREVIEW_H * PRINT_SCALE;  // 1600
+    const ctx = off.getContext('2d')!;
+    await (document as any).fonts.ready;
+    await drawPoster(ctx, posterData, colors, selectedFont, PRINT_SCALE);
+    return off;
+  };
+
+  const downloadPng = async () => {
     setIsExporting(true);
     setExportSuccess(null);
     try {
-      const el = posterRef.current;
-      const prev = el.style.transform;
-      el.style.transform = 'none';
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-
-      const canvas = await html2canvas(el, {
-        scale: 2.5,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: null,
-        logging: false,
-        onclone: (_d) => injectFonts(_d),
-      });
-
-      el.style.transform = prev;
+      const canvas = await makePrintCanvas();
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `poster-BD-${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setExportSuccess('উচ্চ রেজুলেশন PNG (১২০০×১৬০০) সফলভাবে ডাউনলোড হয়েছে!');
     } catch (err: any) {
-      alert('এক্সপোর্ট করতে সমস্যা: ' + err.message);
+      alert('PNG এক্সপোর্ট করতে সমস্যা: ' + err.message);
     } finally {
       setIsExporting(false);
     }
   };
 
   const downloadPdf = async () => {
-    if (!posterRef.current) return;
     setIsExporting(true);
     setExportSuccess(null);
     try {
-      const el = posterRef.current;
-      const prev = el.style.transform;
-      el.style.transform = 'none';
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        onclone: (_d) => injectFonts(_d),
-      });
-
-      el.style.transform = prev;
+      const canvas = await makePrintCanvas();
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const w = pdf.internal.pageSize.getWidth();
       const h = pdf.internal.pageSize.getHeight();
@@ -136,15 +579,17 @@ export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-800/80 rounded-lg p-1 border border-slate-700">
             <button
-              onClick={() => setScale((p) => Math.max(0.4, p - 0.1))}
+              onClick={() => setDisplayScale((p) => Math.max(0.4, p - 0.1))}
               className="p-1 hover:text-white text-slate-400 transition-colors"
+              title="জুম আউট"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
-            <span className="text-xs px-2 text-slate-300 font-mono">{Math.round(scale * 100)}%</span>
+            <span className="text-xs px-2 text-slate-300 font-mono">{Math.round(displayScale * 100)}%</span>
             <button
-              onClick={() => setScale((p) => Math.min(1.0, p + 0.1))}
+              onClick={() => setDisplayScale((p) => Math.min(1.0, p + 0.1))}
               className="p-1 hover:text-white text-slate-400 transition-colors"
+              title="জুম ইন"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
@@ -159,6 +604,10 @@ export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
             <option value="Hind Siliguri">হিন্দ শিলিগুড়ি</option>
             <option value="Anek Bangla">অনেক বাংলা</option>
           </select>
+
+          {isDrawing && (
+            <span className="text-xs text-amber-400 animate-pulse">রেন্ডার হচ্ছে…</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -174,17 +623,17 @@ export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
           )}
 
           <button
-            onClick={downloadHighResPng}
-            disabled={isExporting}
+            onClick={downloadPng}
+            disabled={isExporting || isDrawing}
             className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow transition-colors disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
-            PNG (১২০০×১৬০০)
+            {isExporting ? 'তৈরি হচ্ছে…' : 'PNG (১২০০×১৬০০)'}
           </button>
 
           <button
             onClick={downloadPdf}
-            disabled={isExporting}
+            disabled={isExporting || isDrawing}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-600 text-white flex items-center gap-1.5 shadow transition-colors disabled:opacity-50"
           >
             <FileText className="w-3.5 h-3.5" />
@@ -200,164 +649,26 @@ export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
         </div>
       )}
 
-      {/* ── Outer zoom wrapper (display only) ── */}
+      {/* ── Canvas preview (zoom via CSS only — canvas pixel size never changes) ── */}
       <div
         style={{
-          transform: `scale(${scale})`,
+          transform: `scale(${displayScale})`,
           transformOrigin: 'top center',
-          marginBottom: `-${640 * (1 - scale)}px`,
+          marginBottom: `-${PREVIEW_H * (1 - displayScale)}px`,
           display: 'inline-block',
         }}
       >
-        {/* Border shell 480×640 */}
-        <div
-          className="rounded-2xl shadow-2xl border-4 border-amber-400/40 overflow-hidden"
-          style={{ width: '480px', height: '640px' }}
-        >
-          {/* posterRef captured by html2canvas */}
-          <div
-            ref={posterRef}
-            className="relative w-full h-full text-white flex flex-col justify-between overflow-hidden"
-            style={{
-              background: `linear-gradient(180deg, ${bgGrad[0]} 0%, ${bgGrad[1]} 65%, #050C09 100%)`,
-              fontFamily: `'${selectedFont}', 'Hind Siliguri', 'Noto Sans Bengali', sans-serif`,
-            }}
-          >
-            {/* BG circle motif */}
-            <div
-              className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-15 pointer-events-none"
-              style={{ backgroundColor: redColor }}
-            />
-
-            {/* Golden border */}
-            <div className="absolute inset-2.5 border-4 border-amber-400/80 rounded-xl pointer-events-none" />
-            <div className="absolute inset-4 border border-white/20 rounded-lg pointer-events-none" />
-
-            {/* Corner ornaments */}
-            <div className="absolute top-3 left-3 text-amber-400 text-xl font-bold opacity-80 pointer-events-none">❖</div>
-            <div className="absolute top-3 right-3 text-amber-400 text-xl font-bold opacity-80 pointer-events-none">❖</div>
-            <div className="absolute bottom-3 left-3 text-amber-400 text-xl font-bold opacity-80 pointer-events-none">❖</div>
-            <div className="absolute bottom-3 right-3 text-amber-400 text-xl font-bold opacity-80 pointer-events-none">❖</div>
-
-            {/* ── TOP ── */}
-            <div className="pt-4 px-5 z-10 text-center">
-              <div className="inline-block bg-black/40 border border-amber-400/30 rounded-full px-4 py-0.5 text-[11px] text-amber-300 font-bold tracking-wide mb-2">
-                বিসমিল্লাহির রাহমানির রাহিম
-              </div>
-
-              <div className="flex items-center justify-center gap-5 my-1">
-                <div className="w-14 h-14 rounded-full border-4 border-amber-400 bg-slate-900 shadow-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {posterData.leader1PhotoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imgSrc(posterData.leader1PhotoUrl)} alt="নেতা ১" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[9px] text-slate-300 text-center leading-tight px-1">শীর্ষ নেতা ১</span>
-                  )}
-                </div>
-
-                <div
-                  className="w-10 h-10 rounded-full border-2 border-amber-400 flex items-center justify-center shadow-lg flex-shrink-0"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  <div className="w-5 h-5 rounded-full" style={{ backgroundColor: redColor }} />
-                </div>
-
-                <div className="w-14 h-14 rounded-full border-4 border-amber-400 bg-slate-900 shadow-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {posterData.leader2PhotoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imgSrc(posterData.leader2PhotoUrl)} alt="নেতা ২" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[9px] text-slate-300 text-center leading-tight px-1">শীর্ষ নেতা ২</span>
-                  )}
-                </div>
-              </div>
-
-              <div
-                className="mt-2 py-2 px-4 rounded-lg shadow-xl text-center border-2 border-amber-300 mx-2"
-                style={{ background: `linear-gradient(90deg, ${redColor} 0%, #B91C1C 100%)` }}
-              >
-                <h1 className="text-xl font-black tracking-wide drop-shadow-md text-white leading-tight">
-                  {posterData.headline || 'মহান বিজয় দিবস'}
-                </h1>
-              </div>
-
-              {posterData.subheadline && (
-                <p className="text-[11px] text-amber-300 mt-1 font-semibold drop-shadow leading-tight">
-                  {posterData.subheadline}
-                </p>
-              )}
-            </div>
-
-            {/* ── MIDDLE ── */}
-            <div className="flex flex-col items-center justify-center z-10 flex-1 py-2">
-              <div className="relative">
-                <div
-                  className="w-32 h-32 rounded-full border-4 border-amber-400 bg-slate-900/90 shadow-2xl overflow-hidden flex items-center justify-center"
-                  style={{ boxShadow: `0 0 22px ${goldColor}55` }}
-                >
-                  {posterData.candidatePhotoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imgSrc(posterData.candidatePhotoUrl)} alt={posterData.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-center p-2">
-                      <div className="w-9 h-9 mx-auto rounded-full bg-slate-800 flex items-center justify-center mb-1">
-                        <Eye className="w-4 h-4 text-emerald-400" />
-                      </div>
-                      <span className="text-[10px] text-emerald-300 font-medium">প্রার্থীর ছবি</span>
-                    </div>
-                  )}
-                </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 text-[9px] font-extrabold px-3 py-0.5 rounded-full border border-white shadow whitespace-nowrap">
-                  জনতার সেবক
-                </div>
-              </div>
-
-              <div className="mt-4 bg-black/60 border border-amber-400/60 rounded-xl px-5 py-2.5 text-center max-w-[88%] shadow-lg">
-                <h2 className="text-lg font-bold text-white tracking-wide drop-shadow leading-tight">
-                  {posterData.name || 'সম্মানিত প্রার্থী'}
-                </h2>
-                <p className="text-[11px] text-amber-300 font-semibold mt-0.5 leading-tight">
-                  {posterData.designation || 'পদবি'}, {posterData.party || 'রাজনৈতিক দল'}
-                </p>
-                <p className="text-[10px] text-slate-300 mt-0.5">
-                  📍 {posterData.district || 'থানা / জেলা, বাংলাদেশ'}
-                </p>
-              </div>
-
-              {posterData.slogan && (
-                <div className="mt-2 px-5 py-1 bg-black/40 rounded-lg max-w-[82%] text-center border border-white/10">
-                  <p className="text-[10px] text-slate-200 italic font-medium leading-tight">
-                    &ldquo;{posterData.slogan}&rdquo;
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* ── BOTTOM ── */}
-            <div className="pb-3 px-5 z-10">
-              <div
-                className="py-2 px-4 rounded-xl border border-amber-400 text-center shadow-2xl"
-                style={{ background: `linear-gradient(90deg, #991B1B 0%, ${redColor} 50%, #991B1B 100%)` }}
-              >
-                <div className="inline-block bg-white text-red-700 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider mb-0.5 shadow-sm">
-                  - প্রচারে -
-                </div>
-                <p className="text-sm font-extrabold text-white drop-shadow leading-tight">
-                  {posterData.promotedBy || 'সকল সচেতন এলাকাবাসী ও নেতাকর্মীবৃন্দ'}
-                </p>
-                <p className="text-[9px] text-amber-200 mt-0.5">
-                  {posterData.district} | দলমত নির্বিশেষে সর্বস্তরের জনগণ
-                </p>
-              </div>
-
-              <div className="text-center mt-1">
-                <span className="text-[8px] text-slate-400 opacity-50">
-                  AI Political Poster Maker Bangladesh • ১২০০×১৬০০ হাই-রেজুলেশন
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <canvas
+          ref={canvasRef}
+          width={PREVIEW_W}
+          height={PREVIEW_H}
+          style={{
+            display: 'block',
+            borderRadius: 16,
+            border: `4px solid ${colors.gold}66`,
+            boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+          }}
+        />
       </div>
     </div>
   );
