@@ -1,0 +1,13 @@
+{
+  "name": "ai-political-poster-maker",
+  "version": "1.0.0",
+  "description": "AI-assisted Political Poster Maker for Bangladesh (Next.js, Express, MongoDB, Gemini AI)",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "seed": "npm --prefix backend run seed",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend"
+  }
+}

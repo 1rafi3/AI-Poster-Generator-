@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Anek+Bangla:wght@400;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla:ital@0;1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-green: #006A4E;
+  --patriotic-red: #F42A41;
+  --golden-accent: #F59E0B;
+}
+
+body {
+  font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
+  background-color: #0b1320;
+  color: #f1f5f9;
+  min-height: 100vh;
+}
+
+/* Custom Bangladeshi Political Poster Utilities */
+.bangla-title {
+  font-family: 'Tiro Bangla', 'Hind Siliguri', serif;
+}
+
+.bangla-sans {
+  font-family: 'Hind Siliguri', sans-serif;
+}
+
+.bangla-display {
+  font-family: 'Anek Bangla', 'Hind Siliguri', sans-serif;
+}
+
+/* Subtle patriotic glow */
+.glow-gold {
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
+}
+
+.glow-green {
+  box-shadow: 0 0 25px rgba(0, 106, 78, 0.35);
+}
+
+.glow-red {
+  box-shadow: 0 0 25px rgba(244, 42, 65, 0.3);
+}
+
+/* Glassmorphism */
+.glass-card {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card-hover {
+  transition: all 0.25s ease-in-out;
+}
+.glass-card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 10px 30px -10px rgba(0, 106, 78, 0.4);
+}
