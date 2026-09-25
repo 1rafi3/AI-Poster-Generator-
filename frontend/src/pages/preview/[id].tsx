@@ -157,6 +157,22 @@ export default function PosterPreviewPage() {
         </button>
       </div>
 
+      {/* AI Content Moderation Banner */}
+      {poster.moderationStatus === 'flagged' && (
+        <div className="bg-red-950/70 border border-red-500/60 rounded-xl p-4 flex items-start gap-3 shadow-lg animate-fadeIn">
+          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h4 className="text-xs sm:text-sm font-bold text-red-200 flex items-center gap-2">
+              ⚠️ স্বয়ংক্রিয় AI কন্টেন্ট মডারেশন সতর্কতা
+              <span className="px-2 py-0.5 rounded text-[10px] bg-red-900/80 text-red-200 border border-red-700">ফ্ল্যাগড</span>
+            </h4>
+            <p className="text-xs text-red-300 mt-1 leading-relaxed">
+              {poster.moderationNotes || 'এই পোস্টারটিতে নীতিমালার ব্যত্যয় ঘটাতে পারে এমন টেক্সট শনাক্ত হয়েছে। অ্যাডমিন পর্যালোচনার পূর্বে জনসাধারণের মাঝে প্রচার করা থেকে বিরত থাকুন।'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Main Layout: Left Editor Tweaks, Right High-Res Canvas */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* LEFT: Quick Tweak & Regenerate Form (5 Cols) */}

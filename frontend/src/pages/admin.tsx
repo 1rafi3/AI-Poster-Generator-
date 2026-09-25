@@ -227,8 +227,13 @@ export default function AdminPage() {
                                 : 'bg-emerald-950 text-emerald-300 border-emerald-700'
                             }`}
                           >
-                            {p.moderationStatus === 'flagged' ? 'ফ্ল্যাগড (নিষিদ্ধ)' : 'অনুমোদিত'}
+                            {p.moderationStatus === 'flagged' ? 'AI ফ্ল্যাগড' : 'অনুমোদিত'}
                           </span>
+                          {p.moderationNotes && (
+                            <p className="text-[10px] text-slate-400 mt-1 max-w-[200px] truncate" title={p.moderationNotes}>
+                              {p.moderationNotes}
+                            </p>
+                          )}
                         </td>
                         <td className="p-3.5 text-right space-x-2 whitespace-nowrap">
                           <Link

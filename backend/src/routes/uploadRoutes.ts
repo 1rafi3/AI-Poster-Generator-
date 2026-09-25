@@ -1,22 +1,26 @@
 import { Router, Request, Response } from 'express';
 import { upload } from '../middleware/upload';
 import { authenticate } from '../middleware/auth';
+import { storageService } from '../services/storage';
 
 const router = Router();
 
-router.post('/', authenticate, upload.single('photo'), (req: Request, res: Response): void => {
+router.post('/', authenticate, upload.single('photo'), async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) {
       res.status(400).json({ success: false, message: 'No photo uploaded or invalid file format.' });
       return;
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const uploadResult = await storageService.uploadPhoto(req.file);
+
     res.status(200).json({
       success: true,
       message: 'Photo uploaded successfully',
-      url: fileUrl,
-      filename: req.file.filename,
+      url: uploadResult.url,
+      publicId: uploadResult.publicId,
+      storageType: uploadResult.storageType,
+      filename: uploadResult.filename,
       size: req.file.size,
       mimetype: req.file.mimetype,
     });

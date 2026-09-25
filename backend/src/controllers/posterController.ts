@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { Poster } from '../models/Poster';
 import { Template } from '../models/Template';
-import { generateAIPosterAssistance } from '../services/gemini';
+import { generateAIPosterAssistance, moderatePosterWithAI } from '../services/gemini';
 import { renderPosterImage } from '../services/renderer';
 import mongoose from 'mongoose';
 
@@ -27,7 +27,19 @@ export async function createPoster(req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    // Create poster record in generating status
+    // Run AI content moderation check on user text
+    const moderationResult = await moderatePosterWithAI({
+      name: formData.name,
+      designation: formData.designation,
+      party: formData.party,
+      district: formData.district,
+      headline: formData.headline,
+      subheadline: formData.subheadline,
+      slogan: formData.slogan,
+      promotedBy: formData.promotedBy,
+    });
+
+    // Create poster record in generating status with AI moderation result
     const poster = new Poster({
       userId: new mongoose.Types.ObjectId(userId),
       templateId: new mongoose.Types.ObjectId(templateId),
@@ -35,7 +47,8 @@ export async function createPoster(req: AuthRequest, res: Response): Promise<voi
       uploadedPhotoUrls: uploadedPhotoUrls || [],
       status: 'generating',
       retryCount: 0,
-      moderationStatus: 'approved',
+      moderationStatus: moderationResult.moderationStatus,
+      moderationNotes: moderationResult.moderationNotes,
     });
 
     await poster.save();
@@ -66,6 +79,7 @@ export async function createPoster(req: AuthRequest, res: Response): Promise<voi
       res.status(201).json({
         success: true,
         message: 'Poster created and generated successfully',
+        moderationWarning: poster.moderationStatus === 'flagged' ? poster.moderationNotes : undefined,
         poster,
       });
     } catch (renderError: any) {
@@ -148,6 +162,20 @@ export async function regeneratePoster(req: AuthRequest, res: Response): Promise
 
     if (formData) {
       poster.formData = { ...poster.formData, ...formData };
+      
+      // Re-run moderation on updated text
+      const modResult = await moderatePosterWithAI({
+        name: poster.formData.name,
+        designation: poster.formData.designation,
+        party: poster.formData.party,
+        district: poster.formData.district,
+        headline: poster.formData.headline,
+        subheadline: poster.formData.subheadline,
+        slogan: poster.formData.slogan,
+        promotedBy: poster.formData.promotedBy,
+      });
+      poster.moderationStatus = modResult.moderationStatus;
+      poster.moderationNotes = modResult.moderationNotes;
     }
 
     poster.status = 'generating';
