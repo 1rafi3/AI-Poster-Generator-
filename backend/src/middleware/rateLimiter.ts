@@ -70,8 +70,8 @@ export function createGenerationLimiter(options: RateLimitOptions) {
   };
 }
 
-// Default export: 15 poster generations per 15 minutes per user
+// Default export: 150 poster generations per 15 minutes per user (supports bulk batch creation)
 export const posterGenerationLimiter = createGenerationLimiter({
   windowMs: 15 * 60 * 1000,
-  maxRequests: 15,
+  maxRequests: 150,
 });

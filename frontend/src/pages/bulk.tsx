@@ -16,6 +16,7 @@ import {
   FileText,
   HelpCircle,
   ArrowRight,
+  RotateCcw,
 } from 'lucide-react';
 
 interface ParsedCandidate {
@@ -224,12 +225,62 @@ export default function BulkGeneratorPage() {
 
       done += 1;
       setProgressCount(done);
-      // Small breath between requests to respect rate limits
-      await new Promise((r) => setTimeout(r, 400));
+      // Breathing pause between requests to ensure seamless disk writing & database stability
+      await new Promise((r) => setTimeout(r, 650));
     }
 
     setIsProcessing(false);
     setStatusMessage(`🎉 ব্যাচ সম্পন্ন! মোট ${done}টি পোস্টার সফলভাবে প্রক্রিয়া করা হয়েছে।`);
+  };
+
+  const handleRetryCandidate = async (candidateId: string) => {
+    const candidateIdx = candidates.findIndex((c) => c.id === candidateId);
+    if (candidateIdx === -1) return;
+
+    const candidate = candidates[candidateIdx];
+    const chosenTemplate = templates.find((t) => t._id === selectedTemplateId);
+
+    setCandidates((prev) =>
+      prev.map((c) => (c.id === candidateId ? { ...c, status: 'generating', error: undefined } : c))
+    );
+
+    try {
+      const payload = {
+        templateId: selectedTemplateId,
+        formData: {
+          name: candidate.name,
+          designation: candidate.designation,
+          party: candidate.party,
+          district: candidate.district,
+          occasionType: chosenTemplate?.occasionType || 'victory_day',
+          headline: candidate.headline || 'মহান বিজয় দিবস সফল হোক',
+          subheadline: `${candidate.party} ও সহযোগী অঙ্গসংগঠনের পক্ষে`,
+          promotedBy: `${candidate.name}-এর সমর্থক ও সচেতন এলাকাবাসী`,
+          slogan: candidate.slogan || 'ঐক্য, সততা ও উন্নয়নের প্রতীক',
+          leader1PhotoUrl: commonLeader1Url,
+          leader2PhotoUrl: commonLeader2Url,
+          photoLayout,
+        },
+        uploadedPhotoUrls: [commonLeader1Url, commonLeader2Url].filter(Boolean),
+      };
+
+      const res = await apiRequest('/posters', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (res.success && res.poster) {
+        setCandidates((prev) =>
+          prev.map((c) => (c.id === candidateId ? { ...c, status: 'completed', posterId: res.poster._id } : c))
+        );
+      } else {
+        throw new Error(res.message || 'Retry failed');
+      }
+    } catch (err: any) {
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === candidateId ? { ...c, status: 'failed', error: err.message } : c))
+      );
+    }
   };
 
   return (
@@ -416,6 +467,36 @@ export default function BulkGeneratorPage() {
               )}
             </div>
 
+            {/* Progress Bar */}
+            {candidates.length > 0 && (isProcessing || progressCount > 0) && (
+              <div className="mt-4 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-center text-xs mb-2 font-medium">
+                  <span className="text-slate-300 flex items-center gap-1.5">
+                    {isProcessing ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                        পোস্টার ব্যাচ প্রক্রিয়াধীন...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        ব্যাচ প্রসেসিং সমাপ্ত
+                      </>
+                    )}
+                  </span>
+                  <span className="text-emerald-400 font-mono font-bold">
+                    {Math.round((progressCount / candidates.length) * 100)}% ({progressCount}/{candidates.length})
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, Math.round((progressCount / candidates.length) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             {statusMessage && (
               <div className="mt-3 p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-300 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -469,7 +550,10 @@ export default function BulkGeneratorPage() {
                             </span>
                           )}
                           {cand.status === 'failed' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/40">
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/40"
+                              title={cand.error || 'পোস্টার তৈরি ব্যর্থ'}
+                            >
                               <AlertCircle className="w-3 h-3" /> ব্যর্থ
                             </span>
                           )}
@@ -483,6 +567,15 @@ export default function BulkGeneratorPage() {
                             >
                               <Eye className="w-3 h-3" /> প্রিভিউ
                             </Link>
+                          ) : cand.status === 'failed' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRetryCandidate(cand.id)}
+                              disabled={isProcessing}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-500/40 transition-colors disabled:opacity-50"
+                            >
+                              <RotateCcw className="w-3 h-3" /> পুনরায় চেষ্টা
+                            </button>
                           ) : (
                             <span className="text-slate-600">—</span>
                           )}

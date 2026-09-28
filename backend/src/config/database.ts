@@ -20,7 +20,10 @@ export async function connectDB(): Promise<void> {
   try {
     console.log('[Database] Initializing embedded zero-config MongoDB (MongoMemoryServer)...');
     const { MongoMemoryServer } = await import('mongodb-memory-server');
-    const mongod = await MongoMemoryServer.create();
+    if (!(global as any).__MONGOD_INSTANCE__) {
+      (global as any).__MONGOD_INSTANCE__ = await MongoMemoryServer.create();
+    }
+    const mongod = (global as any).__MONGOD_INSTANCE__;
     const uri = mongod.getUri();
     await mongoose.connect(uri);
     console.log(`[Database] Connected to embedded in-memory MongoDB at: ${uri}`);

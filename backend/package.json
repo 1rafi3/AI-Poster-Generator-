@@ -4,7 +4,7 @@
   "description": "Express backend for AI Political Poster Maker",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --ignore \"uploads/**\" --ignore uploads src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts"
