@@ -5,6 +5,62 @@ import { Poster } from '../models/Poster';
 import { GenerationLog } from '../models/GenerationLog';
 import { User } from '../models/User';
 
+export async function getAdminStats(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalPosters = await Poster.countDocuments();
+    const totalTemplates = await Template.countDocuments();
+    const totalLogs = await GenerationLog.countDocuments();
+
+    // Group posters by political party
+    const postersByParty = await Poster.aggregate([
+      {
+        $group: {
+          _id: { $ifNull: ['$formData.party', 'অনির্ধারিত'] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    // Group posters by occasion
+    const postersByOccasion = await Poster.aggregate([
+      {
+        $group: {
+          _id: { $ifNull: ['$formData.occasionType', 'সাধারণ'] },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    // Group posters by moderation status
+    const postersByModeration = await Poster.aggregate([
+      {
+        $group: {
+          _id: { $ifNull: ['$moderationStatus', 'approved'] },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalUsers,
+        totalPosters,
+        totalTemplates,
+        totalLogs,
+        postersByParty,
+        postersByOccasion,
+        postersByModeration,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 export async function createTemplate(req: AuthRequest, res: Response): Promise<void> {
   try {
     const { title, occasionType, occasionLabelBangla, thumbnailUrl, layoutConfig } = req.body;

@@ -117,16 +117,94 @@ export async function getPosterById(req: AuthRequest, res: Response): Promise<vo
 
 export async function getUserPosters(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { userId } = req.params;
+    const targetUserId = req.params.userId || req.user?.id;
+
+    if (!targetUserId) {
+      res.status(401).json({ success: false, message: 'Authentication required.' });
+      return;
+    }
 
     // Safety check: only let users view their own unless admin
-    if (req.user?.id !== userId && req.user?.role !== 'admin') {
+    if (req.user?.id !== targetUserId && req.user?.role !== 'admin') {
       res.status(403).json({ success: false, message: 'Access denied.' });
       return;
     }
 
-    const posters = await Poster.find({ userId }).populate('templateId').sort({ createdAt: -1 });
+    const posters = await Poster.find({ userId: targetUserId }).populate('templateId').sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: posters.length, posters });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function updatePoster(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { formData, generatedImageUrl, pdfUrl, status } = req.body;
+
+    const poster = await Poster.findById(id);
+    if (!poster) {
+      res.status(404).json({ success: false, message: 'Poster not found' });
+      return;
+    }
+
+    if (poster.userId.toString() !== req.user?.id && req.user?.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Access denied' });
+      return;
+    }
+
+    if (formData) {
+      poster.formData = { ...poster.formData, ...formData };
+      poster.markModified('formData');
+    }
+    if (generatedImageUrl) poster.generatedImageUrl = generatedImageUrl;
+    if (pdfUrl) poster.pdfUrl = pdfUrl;
+    if (status) poster.status = status;
+
+    await poster.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Poster updated successfully',
+      poster,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function exportPoster(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { format, exportUrl } = req.body; // 'png' | 'pdf'
+
+    const poster = await Poster.findById(id);
+    if (!poster) {
+      res.status(404).json({ success: false, message: 'Poster not found' });
+      return;
+    }
+
+    if (poster.userId.toString() !== req.user?.id && req.user?.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Access denied' });
+      return;
+    }
+
+    if (exportUrl) {
+      if (format === 'pdf') {
+        poster.pdfUrl = exportUrl;
+      } else {
+        poster.generatedImageUrl = exportUrl;
+      }
+      await poster.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${format ? format.toUpperCase() : 'Poster'} export metadata updated`,
+      exportUrl: format === 'pdf' ? (poster.pdfUrl || poster.generatedImageUrl) : poster.generatedImageUrl,
+      isPaid: poster.isPaid,
+      poster,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

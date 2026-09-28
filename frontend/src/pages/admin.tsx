@@ -34,11 +34,18 @@ export default function AdminPage() {
   const loadAdminData = async () => {
     setIsLoading(true);
     try {
-      // Load posters & analytics stats
+      // Load posters
       const postersData = await apiRequest('/admin/posters');
       if (postersData.success) {
         setPosters(postersData.posters || []);
-        setStats(postersData.stats || {});
+      }
+
+      // Load analytics stats with party & occasion breakdown
+      const statsData = await apiRequest('/admin/stats');
+      if (statsData.success) {
+        setStats(statsData.stats || {});
+      } else if (postersData.stats) {
+        setStats(postersData.stats);
       }
 
       // Load all templates
@@ -150,6 +157,61 @@ export default function AdminPage() {
           <p className="text-2xl font-black text-white">{stats.totalLogs || 0}</p>
         </div>
       </div>
+
+      {/* Detailed Generation Stats (Party & Occasion Breakdowns) */}
+      {(stats.postersByParty?.length > 0 || stats.postersByOccasion?.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="glass-card p-5 rounded-xl border border-slate-800">
+            <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center justify-between">
+              <span>রাজনৈতিক দলভিত্তিক পোস্টার সংখ্যা</span>
+              <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">
+                {stats.postersByParty?.length || 0} টি দল
+              </span>
+            </h3>
+            <div className="space-y-2">
+              {stats.postersByParty?.map((item: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between text-xs bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-800/80">
+                  <span className="text-slate-200 font-medium truncate max-w-[220px]">{item._id}</span>
+                  <span className="font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                    {item.count} টি
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-card p-5 rounded-xl border border-slate-800">
+            <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center justify-between">
+              <span>উপলক্ষভিত্তিক পোস্টার সংখ্যা</span>
+              <span className="text-xs text-teal-400 bg-teal-400/10 px-2 py-0.5 rounded-full">
+                {stats.postersByOccasion?.length || 0} টি উপলক্ষ
+              </span>
+            </h3>
+            <div className="space-y-2">
+              {stats.postersByOccasion?.map((item: any, idx: number) => (
+                <div key={idx} className="flex items-center justify-between text-xs bg-slate-900/60 px-3 py-2 rounded-lg border border-slate-800/80">
+                  <span className="text-slate-200 font-medium capitalize truncate max-w-[220px]">
+                    {item._id === 'victory_day'
+                      ? 'মহান বিজয় দিবস'
+                      : item._id === 'condolence'
+                      ? 'শোক ও শ্রদ্ধাঞ্জলি'
+                      : item._id === 'election'
+                      ? 'নির্বাচনী প্রচার'
+                      : item._id === 'greetings'
+                      ? 'শুভেচ্ছা বার্তা'
+                      : item._id === 'eid_festival'
+                      ? 'ঈদ ও উৎসব'
+                      : item._id}
+                  </span>
+                  <span className="font-bold text-teal-400 bg-teal-950/60 px-2 py-0.5 rounded border border-teal-800/40">
+                    {item.count} টি
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-slate-800 space-x-4">
