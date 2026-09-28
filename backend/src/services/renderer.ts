@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { IPoster } from '../models/Poster';
 import { ITemplate } from '../models/Template';
+import { storageService } from './storage';
 
 export async function renderPosterImage(poster: IPoster, template: ITemplate): Promise<string> {
   const width = 1200;
@@ -254,5 +255,5 @@ export async function renderPosterImage(poster: IPoster, template: ITemplate): P
     .png({ quality: 95 })
     .toFile(outputPath);
 
-  return `/uploads/posters/${outputFileName}`;
+  return await storageService.uploadRenderedFile(outputPath, outputFileName, 'image/png');
 }

@@ -187,6 +187,58 @@ class StorageService {
     };
   }
 
+  public async uploadRenderedFile(filePath: string, filename: string, mimetype = 'image/png'): Promise<string> {
+    const folder = process.env.UPLOAD_FOLDER || 'political-posters';
+
+    // 1. Try S3 or DigitalOcean Spaces if configured
+    if (this.s3Enabled && this.s3Client) {
+      try {
+        const fileContent = fs.readFileSync(filePath);
+        const key = `${folder}/posters/${filename}`;
+
+        const uploadParams: any = {
+          Bucket: this.s3Bucket,
+          Key: key,
+          Body: fileContent,
+          ContentType: mimetype,
+          ACL: 'public-read',
+        };
+
+        await this.s3Client.send(new PutObjectCommand(uploadParams));
+
+        let publicUrl = '';
+        if (this.s3CdnUrl) {
+          publicUrl = `${this.s3CdnUrl.replace(/\/$/, '')}/${key}`;
+        } else if (this.isDigitalOcean) {
+          const endpointHost = this.s3Endpoint.replace(/^https?:\/\//, '');
+          publicUrl = `https://${this.s3Bucket}.${endpointHost}/${key}`;
+        } else {
+          publicUrl = `https://${this.s3Bucket}.s3.${this.s3Region}.amazonaws.com/${key}`;
+        }
+        return publicUrl;
+      } catch (err: any) {
+        console.error('❌ [Storage] S3/DigitalOcean poster upload failed:', err.message);
+      }
+    }
+
+    // 2. Try Cloudinary if configured
+    if (this.cloudinaryEnabled) {
+      try {
+        const result = await cloudinary.uploader.upload(filePath, {
+          folder: `${folder}/posters`,
+          resource_type: 'image',
+          allowed_formats: ['png', 'jpg', 'jpeg', 'webp'],
+        });
+        return result.secure_url;
+      } catch (err: any) {
+        console.error('❌ [Storage] Cloudinary poster upload failed:', err.message);
+      }
+    }
+
+    // 3. Fallback to Local URL
+    return `/uploads/posters/${filename}`;
+  }
+
   public async deletePhoto(identifier: string, isPublicId = false): Promise<boolean> {
     // S3 delete
     if (this.s3Enabled && this.s3Client && (isPublicId || identifier.includes(this.s3Bucket) || identifier.startsWith('political-posters/'))) {
