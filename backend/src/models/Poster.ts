@@ -13,6 +13,8 @@ export interface IPosterFormData {
   candidatePhotoUrl?: string;
   leader1PhotoUrl?: string;
   leader2PhotoUrl?: string;
+  photoLayout?: '3-up' | '2-up' | 'solo';
+  isPaidTier?: boolean;
   customBanglaFont?: string;
   customColorAccent?: string;
 }
@@ -24,6 +26,7 @@ export interface IPoster extends Document {
   uploadedPhotoUrls: string[];
   generatedImageUrl: string;
   pdfUrl?: string;
+  isPaid?: boolean;
   status: 'draft' | 'generating' | 'completed' | 'failed';
   retryCount: number;
   aiSuggestions?: {
@@ -65,6 +68,10 @@ const PosterSchema = new Schema<IPoster>(
     pdfUrl: {
       type: String,
       default: '',
+    },
+    isPaid: {
+      type: Boolean,
+      default: false,
     },
     status: {
       type: String,

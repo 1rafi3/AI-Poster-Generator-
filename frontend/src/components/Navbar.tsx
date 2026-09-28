@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
-import { Palette, Sparkles, FolderClock, ShieldCheck, LogOut, LogIn, UserPlus } from 'lucide-react';
+import { Palette, Sparkles, FolderClock, ShieldCheck, LogOut, LogIn, UserPlus, Users } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const router = useRouter();
@@ -51,6 +51,16 @@ export const Navbar: React.FC = () => {
             >
               <Sparkles className="w-4 h-4 text-amber-400" />
               পোস্টার বানান
+            </Link>
+
+            <Link
+              href="/bulk"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                isActive('/bulk') ? 'bg-emerald-800/60 text-emerald-200 border border-emerald-600/50' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <Users className="w-4 h-4 text-teal-400" />
+              বাল্ক মেকার (CSV)
             </Link>
 
             {user && (

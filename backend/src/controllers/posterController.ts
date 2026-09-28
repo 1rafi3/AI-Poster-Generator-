@@ -231,3 +231,36 @@ export async function deletePoster(req: AuthRequest, res: Response): Promise<voi
     res.status(500).json({ success: false, message: error.message });
   }
 }
+
+export async function unlockPosterPayment(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { paymentMethod, transactionId } = req.body;
+
+    const poster = await Poster.findById(id);
+    if (!poster) {
+      res.status(404).json({ success: false, message: 'Poster not found' });
+      return;
+    }
+
+    if (poster.userId.toString() !== req.user?.id && req.user?.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Access denied' });
+      return;
+    }
+
+    poster.isPaid = true;
+    if (poster.formData) {
+      poster.formData.isPaidTier = true;
+      poster.markModified('formData');
+    }
+    await poster.save();
+
+    res.status(200).json({
+      success: true,
+      message: `পেমেন্ট সফলভাবে সম্পন্ন হয়েছে (${paymentMethod || 'bKash'} TrxID: ${transactionId || 'MOCK_TXN_SUCCESS'})। প্রিমিয়াম ফিচার আনলক হয়েছে।`,
+      poster,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}

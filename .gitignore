@@ -38,3 +38,7 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Internal Agent & Task Artifacts (not part of client requirements)
+CHAT_HISTORY.md
+*.bak

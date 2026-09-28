@@ -28,6 +28,8 @@ export default function CreatePoster() {
     candidatePhotoUrl: '',
     leader1PhotoUrl: '',
     leader2PhotoUrl: '',
+    photoLayout: '3-up' as '3-up' | '2-up' | 'solo',
+    isPaidTier: false,
     customBanglaFont: 'Tiro Bangla',
     customColorAccent: '#006A4E',
   });
@@ -241,17 +243,58 @@ export default function CreatePoster() {
               </select>
             </div>
 
-            {/* 2. Photo Uploads (3 Slots) */}
+            {/* 2. Photo Uploads & Layout Selection */}
             <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                <span>২. ফটো আপলোড (৩টি স্লট)</span>
-                <span className="text-[11px] text-emerald-400 font-normal">কাটআউট ফ্রেম সাপোর্টেড</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  ২. ফটো আপলোড ও লেআউট
+                </label>
+                <div className="flex items-center gap-1 bg-slate-900 border border-slate-700/80 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormData((p) => ({ ...p, photoLayout: '3-up' }))}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                      formData.photoLayout === '3-up'
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="৩ জন নেতার গ্রিড (২ শীর্ষ নেতা + প্রার্থী)"
+                  >
+                    ৩-আপ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((p) => ({ ...p, photoLayout: '2-up' }))}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                      formData.photoLayout === '2-up'
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="২ জন নেতার গ্রিড (১ শীর্ষ নেতা + প্রার্থী)"
+                  >
+                    ২-আপ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((p) => ({ ...p, photoLayout: 'solo' }))}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                      formData.photoLayout === 'solo'
+                        ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="একক প্রার্থী (Solo Focus)"
+                  >
+                    সোলো
+                  </button>
+                </div>
+              </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className={`grid gap-3 ${formData.photoLayout === 'solo' ? 'grid-cols-1' : formData.photoLayout === '2-up' ? 'grid-cols-2' : 'grid-cols-3'}`}>
                 {/* Candidate Photo */}
                 <div className="text-center">
-                  <p className="text-xs text-slate-300 font-medium mb-1">প্রার্থীর ছবি</p>
+                  <p className="text-xs text-slate-300 font-medium mb-1">
+                    {formData.photoLayout === 'solo' ? 'মূল প্রার্থীর ছবি (হাইলাইট)' : 'প্রার্থীর ছবি'}
+                  </p>
                   <label className="cursor-pointer block border-2 border-dashed border-amber-500/50 hover:border-amber-400 rounded-xl p-2 bg-slate-900/80 transition-colors">
                     {formData.candidatePhotoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -275,57 +318,63 @@ export default function CreatePoster() {
                   </label>
                 </div>
 
-                {/* Leader 1 */}
-                <div className="text-center">
-                  <p className="text-xs text-slate-300 font-medium mb-1">শীর্ষ নেতা ১</p>
-                  <label className="cursor-pointer block border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-2 bg-slate-900/80 transition-colors">
-                    {formData.leader1PhotoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={formData.leader1PhotoUrl}
-                        alt="Leader 1"
-                        className="w-16 h-16 rounded-full mx-auto object-cover border border-slate-400"
+                {/* Leader 1 (shown in 3-up and 2-up) */}
+                {formData.photoLayout !== 'solo' && (
+                  <div className="text-center">
+                    <p className="text-xs text-slate-300 font-medium mb-1">
+                      {formData.photoLayout === '2-up' ? 'শীর্ষ নেতা' : 'শীর্ষ নেতা ১'}
+                    </p>
+                    <label className="cursor-pointer block border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-2 bg-slate-900/80 transition-colors">
+                      {formData.leader1PhotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={formData.leader1PhotoUrl}
+                          alt="Leader 1"
+                          className="w-16 h-16 rounded-full mx-auto object-cover border border-slate-400"
+                        />
+                      ) : (
+                        <div className="py-2 text-slate-400">
+                          <User className="w-5 h-5 mx-auto mb-1" />
+                          <span className="text-[10px]">আপলোড</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handlePhotoUpload(e, 'leader1')}
                       />
-                    ) : (
-                      <div className="py-2 text-slate-400">
-                        <User className="w-5 h-5 mx-auto mb-1" />
-                        <span className="text-[10px]">আপলোড</span>
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handlePhotoUpload(e, 'leader1')}
-                    />
-                  </label>
-                </div>
+                    </label>
+                  </div>
+                )}
 
-                {/* Leader 2 */}
-                <div className="text-center">
-                  <p className="text-xs text-slate-300 font-medium mb-1">শীর্ষ নেতা ২</p>
-                  <label className="cursor-pointer block border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-2 bg-slate-900/80 transition-colors">
-                    {formData.leader2PhotoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={formData.leader2PhotoUrl}
-                        alt="Leader 2"
-                        className="w-16 h-16 rounded-full mx-auto object-cover border border-slate-400"
+                {/* Leader 2 (shown only in 3-up) */}
+                {formData.photoLayout === '3-up' && (
+                  <div className="text-center">
+                    <p className="text-xs text-slate-300 font-medium mb-1">শীর্ষ নেতা ২</p>
+                    <label className="cursor-pointer block border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-2 bg-slate-900/80 transition-colors">
+                      {formData.leader2PhotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={formData.leader2PhotoUrl}
+                          alt="Leader 2"
+                          className="w-16 h-16 rounded-full mx-auto object-cover border border-slate-400"
+                        />
+                      ) : (
+                        <div className="py-2 text-slate-400">
+                          <User className="w-5 h-5 mx-auto mb-1" />
+                          <span className="text-[10px]">আপলোড</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handlePhotoUpload(e, 'leader2')}
                       />
-                    ) : (
-                      <div className="py-2 text-slate-400">
-                        <User className="w-5 h-5 mx-auto mb-1" />
-                        <span className="text-[10px]">আপলোড</span>
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handlePhotoUpload(e, 'leader2')}
-                    />
-                  </label>
-                </div>
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -494,6 +543,7 @@ export default function CreatePoster() {
           <PosterCanvasPreview
             posterData={formData}
             templateColors={selectedTemplate?.layoutConfig?.colorScheme}
+            onLayoutChange={(layout) => setFormData((p) => ({ ...p, photoLayout: layout }))}
           />
         </div>
       </div>

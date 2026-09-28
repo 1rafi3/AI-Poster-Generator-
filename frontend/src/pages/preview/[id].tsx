@@ -27,6 +27,8 @@ export default function PosterPreviewPage() {
     slogan: '',
     customBanglaFont: 'Tiro Bangla',
     customColorAccent: '#006A4E',
+    photoLayout: '3-up' as '3-up' | '2-up' | 'solo',
+    isPaidTier: false,
   });
 
   useEffect(() => {
@@ -53,6 +55,8 @@ export default function PosterPreviewPage() {
           slogan: data.poster.formData.slogan || '',
           customBanglaFont: data.poster.formData.customBanglaFont || 'Tiro Bangla',
           customColorAccent: data.poster.formData.customColorAccent || '#006A4E',
+          photoLayout: data.poster.formData.photoLayout || '3-up',
+          isPaidTier: Boolean(data.poster.isPaid || data.poster.formData.isPaidTier),
         });
       }
     } catch (err: any) {
@@ -301,11 +305,23 @@ export default function PosterPreviewPage() {
         <div className="lg:col-span-7">
           <PosterCanvasPreview
             posterData={combinedPosterData}
+            posterId={poster._id}
             serverGeneratedImageUrl={poster.generatedImageUrl}
             templateColors={poster.templateId?.layoutConfig?.colorScheme}
             onRegenerate={handleRegenerate}
             isRegenerating={isRegenerating}
             retryCount={poster.retryCount || 0}
+            onLayoutChange={(layout) => setTweakForm((p) => ({ ...p, photoLayout: layout }))}
+            onPaidSuccess={() => {
+              if (poster) {
+                setPoster((prev: any) => ({
+                  ...prev,
+                  isPaid: true,
+                  formData: { ...prev?.formData, isPaidTier: true },
+                }));
+                setTweakForm((p) => ({ ...p, isPaidTier: true }));
+              }
+            }}
           />
         </div>
       </div>
