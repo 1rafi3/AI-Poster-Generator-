@@ -369,8 +369,8 @@ async function drawPoster(
     gold, 4 * sc, F, sc
   );
 
-  /* -- "জনতার সেবক" badge -- */
-  const badgeText = 'জনতার সেবক';
+  /* -- "জনতার সেবক" or dynamic AI badge -- */
+  const badgeText = (data as any).badgeText || 'জনতার সেবক';
   const badgeBot = midCY + candR;
   ctx.save();
   ctx.font = `900 ${9 * sc}px ${F}`;
@@ -378,7 +378,7 @@ async function drawPoster(
   const bpx = 12 * sc, bpy = 3 * sc;
   const bw = btw + bpx * 2, bh = 15 * sc;
   const bx = W / 2 - bw / 2, by = badgeBot + 5 * sc;
-  ctx.fillStyle = '#f59e0b';
+  ctx.fillStyle = gold || '#f59e0b';
   roundedRect(ctx, bx, by, bw, bh, bh / 2); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 * sc;
   roundedRect(ctx, bx, by, bw, bh, bh / 2); ctx.stroke();
@@ -532,6 +532,82 @@ const PREVIEW_W = 480;
 const PREVIEW_H = 640;
 const PRINT_SCALE = 2.5; // 480×640 × 2.5 = 1200×1600
 
+function getThemePalette(accentHex?: string, fallbackColors?: Colors): Colors {
+  if (!accentHex) {
+    return fallbackColors || {
+      primary: '#006A4E',
+      red: '#F42A41',
+      gold: '#F59E0B',
+      bg: ['#004D38', '#00241A'],
+    };
+  }
+
+  const hex = accentHex.toUpperCase();
+  if (hex === '#006A4E' || hex === '#059669' || hex === '#047857') {
+    return {
+      primary: accentHex,
+      red: '#DC2626',
+      gold: '#F59E0B',
+      bg: ['#044E38', '#002016'],
+    };
+  }
+  if (hex === '#DC2626' || hex === '#EF4444' || hex === '#B91C1C') {
+    return {
+      primary: accentHex,
+      red: '#991B1B',
+      gold: '#FDE047',
+      bg: ['#680D0D', '#2B0404'],
+    };
+  }
+  if (hex === '#F59E0B' || hex === '#D97706') {
+    return {
+      primary: accentHex,
+      red: '#C2410C',
+      gold: '#FEF08A',
+      bg: ['#582A02', '#261201'],
+    };
+  }
+  if (hex === '#0284C7' || hex === '#2563EB' || hex === '#4338CA') {
+    return {
+      primary: accentHex,
+      red: '#B91C1C',
+      gold: '#F59E0B',
+      bg: ['#0C385C', '#041629'],
+    };
+  }
+  if (hex === '#1E293B' || hex === '#334155' || hex === '#18181B' || hex === '#475569') {
+    return {
+      primary: accentHex,
+      red: '#334155',
+      gold: '#CBD5E1',
+      bg: ['#1E293B', '#090D14'],
+    };
+  }
+  if (hex === '#0D9488' || hex === '#0F766E' || hex === '#10B981') {
+    return {
+      primary: accentHex,
+      red: '#047857',
+      gold: '#FDE047',
+      bg: ['#0E4E47', '#052320'],
+    };
+  }
+  if (hex === '#7C3AED') {
+    return {
+      primary: accentHex,
+      red: '#9333EA',
+      gold: '#FDE047',
+      bg: ['#431474', '#1E0638'],
+    };
+  }
+
+  return {
+    primary: accentHex,
+    red: '#DC2626',
+    gold: '#F59E0B',
+    bg: ['#004D38', '#00241A'],
+  };
+}
+
 export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
   posterData,
   posterId,
@@ -557,17 +633,26 @@ export const PosterCanvasPreview: React.FC<PosterCanvasPreviewProps> = ({
     }
   }, [posterData.isPaidTier]);
 
+  useEffect(() => {
+    if (posterData.customBanglaFont) {
+      setSelectedFont(posterData.customBanglaFont);
+    }
+  }, [posterData.customBanglaFont]);
+
   const activeData: PosterData = {
     ...posterData,
+    customBanglaFont: selectedFont,
     isPaidTier: localIsPaid,
   };
 
-  const colors: Colors = {
-    primary: activeData.customColorAccent || templateColors?.primary || '#006A4E',
+  const fallbackTemplateColors: Colors = {
+    primary: templateColors?.primary || '#006A4E',
     red: templateColors?.secondary || '#F42A41',
     gold: templateColors?.accent || '#F59E0B',
     bg: templateColors?.backgroundGradient || ['#004D38', '#00241A'],
   };
+
+  const colors: Colors = getThemePalette(activeData.customColorAccent, fallbackTemplateColors);
 
   /* Redraw preview canvas whenever anything changes */
   const redrawPreview = useCallback(async () => {

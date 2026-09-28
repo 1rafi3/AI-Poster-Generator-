@@ -69,6 +69,16 @@ export async function createPoster(req: AuthRequest, res: Response): Promise<voi
       if (!poster.formData.slogan && aiSuggestions.sloganSuggestion) {
         poster.formData.slogan = aiSuggestions.sloganSuggestion;
       }
+      if (!poster.formData.customColorAccent && aiSuggestions.colorAccentSuggestion) {
+        poster.formData.customColorAccent = aiSuggestions.colorAccentSuggestion;
+      }
+      if (!poster.formData.customBanglaFont && aiSuggestions.fontSuggestion) {
+        poster.formData.customBanglaFont = aiSuggestions.fontSuggestion;
+      }
+      if (aiSuggestions.layoutSuggestion?.badgeText && !(poster.formData as any).badgeText) {
+        (poster.formData as any).badgeText = aiSuggestions.layoutSuggestion.badgeText;
+      }
+      poster.markModified('formData');
 
       // Render print-ready poster
       const imageUrl = await renderPosterImage(poster, template);
@@ -260,7 +270,9 @@ export async function regeneratePoster(req: AuthRequest, res: Response): Promise
     poster.retryCount += 1;
     await poster.save();
 
-    // Re-run AI & Sharp renderer
+    const { refreshText = true, refreshDesign = true } = req.body;
+
+    // Run AI with regeneration mode & current retryCount iteration
     const aiSuggestions = await generateAIPosterAssistance(poster._id as any, {
       name: poster.formData.name,
       designation: poster.formData.designation,
@@ -268,10 +280,45 @@ export async function regeneratePoster(req: AuthRequest, res: Response): Promise
       district: poster.formData.district,
       occasionType: poster.formData.occasionType || template.occasionType,
       headline: poster.formData.headline,
+      subheadline: poster.formData.subheadline,
       slogan: poster.formData.slogan,
+      retryCount: poster.retryCount,
+      isRegenerate: true,
+      refreshText,
+      refreshDesign,
     });
 
     poster.aiSuggestions = aiSuggestions;
+
+    // Apply new AI generated text if requested (or default on regeneration)
+    if (refreshText !== false) {
+      if (aiSuggestions.sloganSuggestion) {
+        poster.formData.slogan = aiSuggestions.sloganSuggestion;
+      }
+      if (aiSuggestions.headlinePolish) {
+        poster.formData.headline = aiSuggestions.headlinePolish;
+      }
+      if (aiSuggestions.subheadlineSuggestion) {
+        poster.formData.subheadline = aiSuggestions.subheadlineSuggestion;
+      }
+    }
+
+    // Apply new AI design styling (color, font, badge) if requested
+    if (refreshDesign !== false) {
+      if (aiSuggestions.colorAccentSuggestion) {
+        poster.formData.customColorAccent = aiSuggestions.colorAccentSuggestion;
+      }
+      if (aiSuggestions.fontSuggestion) {
+        poster.formData.customBanglaFont = aiSuggestions.fontSuggestion;
+      }
+      if (aiSuggestions.layoutSuggestion?.badgeText) {
+        (poster.formData as any).badgeText = aiSuggestions.layoutSuggestion.badgeText;
+      }
+    }
+
+    poster.markModified('formData');
+
+    // Re-render poster with newly applied design and text
     const imageUrl = await renderPosterImage(poster, template);
     poster.generatedImageUrl = imageUrl;
     poster.status = 'completed';
@@ -279,8 +326,9 @@ export async function regeneratePoster(req: AuthRequest, res: Response): Promise
 
     res.status(200).json({
       success: true,
-      message: 'Poster regenerated successfully',
+      message: `পোস্টার সফলভাবে নতুন ডিজাইন ও টেক্সট সহ তৈরি হয়েছে (রিট্রাই: ${poster.retryCount}/৫)`,
       poster,
+      themeName: aiSuggestions.designThemeName,
     });
   } catch (error: any) {
     console.error('Regenerate error:', error);
