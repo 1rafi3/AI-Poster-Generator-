@@ -117,43 +117,50 @@ export default function CreatePoster() {
     }
   };
 
-  // Gemini AI Slogan Generator
+  // Cultural slogan presets for instant intelligent assistance
+  const sloganPresetsByOccasion: Record<string, string[]> = {
+    victory_day: [
+      'বীর বাঙালি অস্ত্র ধরো, বাংলাদেশ মুক্ত করো — বিজয়ের মাসে লাল-সবুজের প্রত্যয়',
+      'বুকের রক্তে কেনা স্বাধীনতা রাখবো ধরে চিরকাল — এক সাগর রক্তের বিনিময়ে স্বাধীনতা আনলে যারা',
+      'বীরদের আত্মত্যাগ বৃথা যেতে দেব না — তারুণ্যের শক্তিতেই গড়বো সমৃদ্ধ সোনার বাংলাদেশ',
+      'রক্তে কেনা লাল-সবুজের পতাকা, বীর শহীদের স্মৃতি থাকবে চির অম্লান',
+    ],
+    election: [
+      'উন্নয়নের প্রতীক, ন্যায়ের কাণ্ডারী — যোগ্য প্রার্থীকে ভোট দিয়ে এলাকার সেবা করার সুযোগ দিন',
+      'কথা নয় কাজে বিশ্বাসী — আপনাদের সুখ-দুঃখে নিবেদিত এক বিশ্বস্ত আপসহীন নাম',
+      'নতুন চিন্তা, সৎ নেতৃত্ব — তারুণ্যের অহংকার নিয়ে এগিয়ে যাবে আমাদের প্রিয় এলাকা',
+      'জনতার আস্থা ও ভালোবাসার প্রতীক — এলাকার সার্বিক উন্নয়নে নিবেদিত প্রাণ',
+    ],
+    condolence: [
+      'আপনার আদর্শ ও স্মৃতি আমাদের হৃদয়ে চির অম্লান থাকবে',
+      'মৃত্যু তোমার শেষ নয়, তুমি আছো কোটি জনতার হৃদস্পন্দনে ও ভালোবাসায়',
+      'কর্মের মাঝেই মানুষ বাঁচে, আপনার সৎ কর্ম বেঁচে থাকবে প্রজন্মের পর প্রজন্ম',
+    ],
+    greetings: [
+      'ঐক্যই শক্তি, প্রগতিই আমাদের লক্ষ্য — জনগণের মুখে হাসি ফোটানোই আমাদের ব্রত',
+      'যোগ্য ও সৎ নেতৃত্বের জয়জয়কার — আগামী দিনের প্রতিটি পদক্ষেপে শুভকামনা',
+      'মানুষের পাশে দাঁড়ানোই সবচেয়ে বড় রাজনীতি — নিঃস্বার্থ সেবার প্রত্যয়ে আমরা চির জাগ্রত',
+    ],
+    eid_festival: [
+      'শান্তি, সৌহার্দ্য ও ভ্রাতৃত্ববোধের জয় হোক — ত্যাগের মহিমায় ভাস্বর হোক আমাদের জীবন',
+      'ধনী-গরিবের ব্যবধান ঘুচে ঈদের আনন্দ হোক প্রতিটি পরিবারের জন্য সমান',
+      'ঈদের খুশি বয়ে আনুক নতুন দিনের আশা, সম্প্রীতি ও অগ্রযাত্রার নতুন প্রত্যয়',
+    ],
+  };
+
+  // Gemini AI Slogan Generator (User-friendly button action)
   const handleAIAssistSlogan = async () => {
     setAiGeneratingSlogan(true);
     try {
-      // Sample context-aware political slogans for instant dynamic boost
-      const sloganBank: Record<string, string[]> = {
-        victory_day: [
-          'রক্তে কেনা লাল-সবুজের পতাকা, বীর শহীদের স্মৃতি থাকবে চির অটুট',
-          'বিজয়ের এই দিনে শপথ করি, গড়বো সোনার বাংলাদেশ',
-          'বীর বাঙালি জেগে ওঠো, সাম্য ও ন্যায়ের দেশ গড়ো',
-        ],
-        election: [
-          'উন্নয়ন ও শান্তির পক্ষে, যোগ্য প্রার্থীকে ভোট দিয়ে জয়যুক্ত করুন',
-          'জনতার আস্থা ও ভালোবাসার প্রতীক — এলাকার সার্বিক উন্নয়নে নিবেদিত',
-          'সততা ও তারুণ্যের অঙ্গীকার, নতুন দিনের পথচলা হোক সবার',
-        ],
-        condolence: [
-          'আপনার আদর্শ ও দেশপ্রেম আমাদের অনুপ্রেরণার বাতিঘর হয়ে থাকবে',
-          'শোককে শক্তিতে রূপান্তর করে আমরা এগিয়ে যাব আপনার দেখানো পথে',
-        ],
-        greetings: [
-          'দেশপ্রেমের জয়গানে মুখরিত হোক আমাদের আগামী দিনগুলো',
-          'ঐক্য, সংহতি ও সৌহার্দ্যের উজ্জ্বল দৃষ্টান্ত হয়ে গড়ে উঠুক সমাজ',
-        ],
-        eid_festival: [
-          'ঈদের অনাবিল আনন্দ ছড়িয়ে পড়ুক বাংলার প্রতিটি ঘরে ও মানুষের প্রাণে',
-          'ত্যাগ ও সৌহার্দ্যের মহিমায় উদ্ভাসিত হোক আমাদের জীবন',
-        ],
-      };
-
-      const options = sloganBank[formData.occasionType] || sloganBank.victory_day;
-      const randomSlogan = options[Math.floor(Math.random() * options.length)];
+      const options = sloganPresetsByOccasion[formData.occasionType] || sloganPresetsByOccasion.victory_day;
+      const currentIdx = options.indexOf(formData.slogan);
+      const nextIdx = (currentIdx + 1) % options.length;
+      const selected = options[nextIdx] || options[0];
 
       setTimeout(() => {
-        setFormData((prev) => ({ ...prev, slogan: randomSlogan }));
+        setFormData((prev) => ({ ...prev, slogan: selected }));
         setAiGeneratingSlogan(false);
-      }, 500);
+      }, 350);
     } catch (e) {
       setAiGeneratingSlogan(false);
     }
@@ -470,25 +477,57 @@ export default function CreatePoster() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-slate-300">রাজনৈতিক স্লোগান</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    রাজনৈতিক স্লোগান
+                    <span className="text-[10px] text-slate-500 font-normal">(ঐচ্ছিক - ফাঁকা রাখলে এআই অটো সাজাবে)</span>
+                  </label>
                   <button
                     type="button"
                     onClick={handleAIAssistSlogan}
                     disabled={aiGeneratingSlogan}
-                    className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-amber-600/20 hover:from-amber-500/30 hover:to-amber-600/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95 disabled:opacity-50"
                   >
-                    <Sparkles className={`w-3.5 h-3.5 ${aiGeneratingSlogan ? 'animate-spin' : ''}`} />
-                    জেমিনি এআই দিয়ে নতুন স্লোগান সাজান
+                    <Sparkles className={`w-3.5 h-3.5 text-amber-400 ${aiGeneratingSlogan ? 'animate-spin' : ''}`} />
+                    {aiGeneratingSlogan ? 'তৈরি হচ্ছে...' : '✨ এআই স্লোগান জেনারেট করুন'}
                   </button>
                 </div>
                 <textarea
                   name="slogan"
                   rows={2}
+                  placeholder="আপনার নিজস্ব স্লোগান লিখুন অথবা ওপরের 'এআই স্লোগান জেনারেট করুন' বাটনে চাপুন..."
                   value={formData.slogan}
                   onChange={handleInputChange}
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
                 />
+
+                {/* Clickable Quick Slogan Presets */}
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <span>💡 পছন্দসই স্লোগানে ক্লিক করে সরাসরি সেট করুন:</span>
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {(sloganPresetsByOccasion[formData.occasionType] || sloganPresetsByOccasion.victory_day).slice(0, 3).map((sug, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setFormData((p) => ({ ...p, slogan: sug }))}
+                        className={`text-xs px-2.5 py-1.5 rounded-lg border text-left transition-all flex items-center justify-between ${
+                          formData.slogan === sug
+                            ? 'bg-amber-500/20 text-amber-200 border-amber-500/60 font-semibold'
+                            : 'bg-slate-900/60 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <span className="truncate">&ldquo;{sug}&rdquo;</span>
+                        {formData.slogan === sug ? (
+                          <span className="text-[10px] text-amber-400 ml-2 font-bold flex-shrink-0">✓ নির্বাচিত</span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 ml-2 hover:text-slate-300 flex-shrink-0">+ বেছে নিন</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
