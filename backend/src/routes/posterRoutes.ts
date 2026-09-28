@@ -8,11 +8,15 @@ import {
   regeneratePoster,
   deletePoster,
   unlockPosterPayment,
+  generateSlogan,
 } from '../controllers/posterController';
 import { authenticate } from '../middleware/auth';
 import { posterGenerationLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
+
+// AI Slogan generator helper endpoint
+router.post('/generate-slogan', generateSlogan);
 
 // Core poster generation and listing
 router.post('/', authenticate, posterGenerationLimiter, createPoster);

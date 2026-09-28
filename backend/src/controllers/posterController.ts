@@ -390,3 +390,31 @@ export async function unlockPosterPayment(req: AuthRequest, res: Response): Prom
     res.status(500).json({ success: false, message: error.message });
   }
 }
+
+export async function generateSlogan(req: any, res: Response): Promise<void> {
+  try {
+    const { occasionType, party, name, designation, district, currentSlogan } = req.body;
+
+    const aiResult = await generateAIPosterAssistance(new mongoose.Types.ObjectId(), {
+      name: name || 'নেতাকর্মী',
+      designation: designation || 'জননেতা',
+      party: party || 'বাংলাদেশ',
+      district: district || 'বাংলাদেশ',
+      occasionType: occasionType || 'victory_day',
+      headline: '',
+      slogan: currentSlogan,
+      isRegenerate: true,
+      retryCount: Math.floor(Math.random() * 50) + 1,
+    });
+
+    res.status(200).json({
+      success: true,
+      slogan: aiResult.sloganSuggestion,
+      tone: aiResult.tone,
+      colorAccent: aiResult.colorAccentSuggestion,
+      themeName: aiResult.designThemeName,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
