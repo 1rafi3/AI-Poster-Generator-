@@ -13,13 +13,21 @@ export async function connectDB(): Promise<void> {
       console.log('[Database] Successfully connected to MongoDB.');
       return;
     } catch (err: any) {
-      console.warn('[Database] Failed to connect to specified MONGODB_URI. Falling back to embedded in-memory MongoDB...', err.message);
+      console.warn('[Database] Failed to connect to specified MONGODB_URI:', err.message);
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`[Database] Production connection failed to MONGODB_URI: ${err.message}`);
+      }
     }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[Database] MONGODB_URI environment variable is required in production environment.');
   }
 
   try {
     console.log('[Database] Initializing embedded zero-config MongoDB (MongoMemoryServer)...');
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    const memoryServerPkg = 'mongodb-memory-server';
+    const { MongoMemoryServer } = (await import(memoryServerPkg as string)) as any;
     if (!(global as any).__MONGOD_INSTANCE__) {
       (global as any).__MONGOD_INSTANCE__ = await MongoMemoryServer.create();
     }
